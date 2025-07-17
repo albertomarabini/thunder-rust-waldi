@@ -1,0 +1,10 @@
+https://chatgpt.com/share/68789790-ede4-8001-a997-fcf51f650f0c
+net_task?
+mod is ok
+
+
+
+mainchain_task:
+- BATCH_REQUEST_SIZE is fixed at 1000
+- All ancestor block headers are fetched serially, not in parallel. If the RPC supports pipelining/multiplex, you might parallelize for faster sync—but only if the mainchain RPC and storage backend aren’t bottlenecks.
+https://chatgpt.com/share/68789790-ede4-8001-a997-fcf51f650f0c - chat continueed from bf

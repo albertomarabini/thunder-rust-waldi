@@ -1,0 +1,2211 @@
+[PROMPT]
+
+
+
+                
+
+You are a world-class Rust & Bitcoin Core engineer, up to speed on Eric Voskuil’s performance breakthroughs (e.g., SwiftSync, accumulator-based UTXO, parallel IBD).
+
+For the Rust file content below, return:
+
+1. Summary (1 sentence): what this file does in block sync/validation flow.
+2. Performance relevance: is it related to parsing, disk I/O, validation, UTXO management, or another sync bottleneck? If not, reply "Not related to syncing or performance."
+3. Optimizations (if relevant): list concrete Rust improvements (parallel parsing with Rayon, accumulator or skiplist, memory-mapped I/O, batch/caching). Only suggest ideas you're confident apply. If uncertain, say "uncertain—need more code context."
+4. If the file is CLI/UI/test/build, only reply "Not related to syncing or performance."
+
+Format:
+Summary: …
+Performance relevance: …
+Optimizations:
+- …
+- …
+
+File content:
+```rust
+use sneed::{db::error as db, env::error as env, rwtxn::error as rwtxn};
+use thiserror::Error;
+use transitive::Transitive;
+
+use crate::types::{
+    AmountOverflowError, AmountUnderflowError, BlockHash, M6id, MerkleRoot,
+    OutPoint, Txid, UtreexoError, WithdrawalBundleError,
+};
+
+#[derive(Debug, Error)]
+pub enum InvalidHeader {
+    #[error("expected block hash {expected}, but computed {computed}")]
+    BlockHash {
+        expected: BlockHash,
+        computed: BlockHash,
+    },
+    #[error(
+        "expected previous sidechain block hash {expected:?}, but received {received:?}"
+    )]
+    PrevSideHash {
+        expected: Option<BlockHash>,
+        received: Option<BlockHash>,
+    },
+}
+
+#[derive(Debug, Error, Transitive)]
+#[transitive(from(db::Clear, db::Error))]
+#[transitive(from(db::Delete, db::Error))]
+#[transitive(from(db::Error, sneed::Error))]
+#[transitive(from(db::IterInit, db::Error))]
+#[transitive(from(db::IterItem, db::Error))]
+#[transitive(from(db::Last, db::Error))]
+#[transitive(from(db::Put, db::Error))]
+#[transitive(from(db::TryGet, db::Error))]
+#[transitive(from(env::CreateDb, env::Error))]
+#[transitive(from(env::Error, sneed::Error))]
+#[transitive(from(env::WriteTxn, env::Error))]
+#[transitive(from(rwtxn::Commit, rwtxn::Error))]
+#[transitive(from(rwtxn::Error, sneed::Error))]
+pub enum Error {
+    #[error("failed to verify authorization")]
+    AuthorizationError,
+    #[error(transparent)]
+    AmountOverflow(#[from] AmountOverflowError),
+    #[error(transparent)]
+    AmountUnderflow(#[from] AmountUnderflowError),
+    #[error("body too large")]
+    BodyTooLarge,
+    #[error(transparent)]
+    BorshSerialize(borsh::io::Error),
+    #[error(transparent)]
+    Db(#[from] sneed::Error),
+    #[error(
+        "invalid body: expected merkle root {expected}, but computed {computed}"
+    )]
+    InvalidBody {
+        expected: MerkleRoot,
+        computed: MerkleRoot,
+    },
+    #[error("invalid header: {0}")]
+    InvalidHeader(InvalidHeader),
+    #[error("deposit block doesn't exist")]
+    NoDepositBlock,
+    #[error("total fees less than coinbase value")]
+    NotEnoughFees,
+    #[error("no tip")]
+    NoTip,
+    #[error("stxo {outpoint} doesn't exist")]
+    NoStxo { outpoint: OutPoint },
+    #[error("value in is less than value out")]
+    NotEnoughValueIn,
+    #[error("utxo {outpoint} doesn't exist")]
+    NoUtxo { outpoint: OutPoint },
+    #[error("Withdrawal bundle event block doesn't exist")]
+    NoWithdrawalBundleEventBlock,
+    #[error(transparent)]
+    Utreexo(#[from] UtreexoError),
+    #[error("Utreexo proof verification failed for tx {txid}")]
+    UtreexoProofFailed { txid: Txid },
+    #[error("Computed Utreexo roots do not match the header roots")]
+    UtreexoRootsMismatch,
+    #[error("utxo double spent")]
+    UtxoDoubleSpent,
+    #[error("too many sigops")]
+    TooManySigops,
+    #[error("Unknown withdrawal bundle: {m6id}")]
+    UnknownWithdrawalBundle { m6id: M6id },
+    #[error(
+        "Unknown withdrawal bundle confirmed in {event_block_hash}: {m6id}"
+    )]
+    UnknownWithdrawalBundleConfirmed {
+        event_block_hash: bitcoin::BlockHash,
+        m6id: M6id,
+    },
+    #[error("wrong public key for address")]
+    WrongPubKeyForAddress,
+    #[error(transparent)]
+    WithdrawalBundle(#[from] WithdrawalBundleError),
+}
+
+```
+
+
+                
+                
+
+[RESPONSE]
+
+Summary:  
+Defines comprehensive error types for block and UTXO processing, including header/body/UTXO/authorization/withdrawal errors, to be used throughout block sync and validation logic.
+
+Performance relevance:  
+Related to validation (error handling during block/UTXO/header/withdrawal verification); not directly disk I/O or parsing, but impacts validation flow and error propagation.
+
+Optimizations:
+- Uncertain—need more code context (the file itself is error definitions; optimizations would depend on how these errors are constructed, propagated, or matched in validation code).
+
+[/home/admin/--DEV--/AI/kahuna_tests/thunder-rust-waldi/lib/state/error.rs]
+
+Summary:  
+Defines comprehensive error types for block and UTXO processing, including header/body/UTXO/authorization/withdrawal errors, to be used throughout block sync and validation logic.
+
+Performance relevance:  
+Related to validation (error handling during block/UTXO/header/withdrawal verification); not directly disk I/O or parsing, but impacts validation flow and error propagation.
+
+Optimizations:
+- Uncertain—need more code context (the file itself is error definitions; optimizations would depend on how these errors are constructed, propagated, or matched in validation code).
+
+[PROMPT]
+
+
+
+                
+
+You are a world-class Rust & Bitcoin Core engineer, up to speed on Eric Voskuil’s performance breakthroughs (e.g., SwiftSync, accumulator-based UTXO, parallel IBD).
+
+For the Rust file content below, return:
+
+1. Summary (1 sentence): what this file does in block sync/validation flow.
+2. Performance relevance: is it related to parsing, disk I/O, validation, UTXO management, or another sync bottleneck? If not, reply "Not related to syncing or performance."
+3. Optimizations (if relevant): list concrete Rust improvements (parallel parsing with Rayon, accumulator or skiplist, memory-mapped I/O, batch/caching). Only suggest ideas you're confident apply. If uncertain, say "uncertain—need more code context."
+4. If the file is CLI/UI/test/build, only reply "Not related to syncing or performance."
+
+Format:
+Summary: …
+Performance relevance: …
+Optimizations:
+- …
+- …
+
+File content:
+```rust
+//! Connect and disconnect two-way peg data
+
+use std::collections::{BTreeMap, HashMap};
+
+use fallible_iterator::FallibleIterator;
+use sneed::{RoTxn, RwTxn, db::error::Error as DbError};
+
+use crate::{
+    state::{
+        Error, State, WITHDRAWAL_BUNDLE_FAILURE_GAP, WithdrawalBundleInfo,
+        rollback::RollBack,
+    },
+    types::{
+        AccumulatorDiff, AggregatedWithdrawal, AmountOverflowError, InPoint,
+        M6id, OutPoint, Output, OutputContent, PointedOutput, SpentOutput,
+        WithdrawalBundle, WithdrawalBundleEvent, WithdrawalBundleStatus, hash,
+        proto::mainchain::{BlockEvent, TwoWayPegData},
+    },
+};
+
+fn collect_withdrawal_bundle(
+    state: &State,
+    rotxn: &RoTxn,
+    block_height: u32,
+) -> Result<Option<WithdrawalBundle>, Error> {
+    // Weight of a bundle with 0 outputs.
+    const BUNDLE_0_WEIGHT: u64 = 504;
+    // Weight of a single output.
+    const OUTPUT_WEIGHT: u64 = 128;
+    // Turns out to be 3121.
+    const MAX_BUNDLE_OUTPUTS: usize =
+        ((bitcoin::policy::MAX_STANDARD_TX_WEIGHT as u64 - BUNDLE_0_WEIGHT)
+            / OUTPUT_WEIGHT) as usize;
+
+    // Aggregate all outputs by destination.
+    // destination -> (value, mainchain fee, spent_utxos)
+    let mut address_to_aggregated_withdrawal = HashMap::<
+        bitcoin::Address<bitcoin::address::NetworkUnchecked>,
+        AggregatedWithdrawal,
+    >::new();
+    let () = state
+        .utxos
+        .iter(rotxn)
+        .map_err(DbError::from)?
+        .map_err(|err| DbError::from(err).into())
+        .for_each(|(outpoint, output)| {
+            if let OutputContent::Withdrawal {
+                value,
+                ref main_address,
+                main_fee,
+            } = output.content
+            {
+                let aggregated = address_to_aggregated_withdrawal
+                    .entry(main_address.clone())
+                    .or_insert(AggregatedWithdrawal {
+                        spend_utxos: HashMap::new(),
+                        main_address: main_address.clone(),
+                        value: bitcoin::Amount::ZERO,
+                        main_fee: bitcoin::Amount::ZERO,
+                    });
+                // Add up all values.
+                aggregated.value = aggregated
+                    .value
+                    .checked_add(value)
+                    .ok_or(AmountOverflowError)?;
+                aggregated.main_fee = aggregated
+                    .main_fee
+                    .checked_add(main_fee)
+                    .ok_or(AmountOverflowError)?;
+                aggregated.spend_utxos.insert(outpoint, output);
+            }
+            Ok::<_, Error>(())
+        })?;
+    if address_to_aggregated_withdrawal.is_empty() {
+        return Ok(None);
+    }
+    let mut aggregated_withdrawals: Vec<_> =
+        address_to_aggregated_withdrawal.into_values().collect();
+    aggregated_withdrawals.sort_by_key(|a| std::cmp::Reverse(a.clone()));
+    let mut fee = bitcoin::Amount::ZERO;
+    let mut spend_utxos = BTreeMap::<OutPoint, Output>::new();
+    let mut bundle_outputs = vec![];
+    for aggregated in &aggregated_withdrawals {
+        if bundle_outputs.len() > MAX_BUNDLE_OUTPUTS {
+            break;
+        }
+        let bundle_output = bitcoin::TxOut {
+            value: aggregated.value,
+            script_pubkey: aggregated
+                .main_address
+                .assume_checked_ref()
+                .script_pubkey(),
+        };
+        spend_utxos.extend(aggregated.spend_utxos.clone());
+        bundle_outputs.push(bundle_output);
+        fee += aggregated.main_fee;
+    }
+    let bundle =
+        WithdrawalBundle::new(block_height, fee, spend_utxos, bundle_outputs)?;
+    Ok(Some(bundle))
+}
+
+fn connect_withdrawal_bundle_submitted(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    event_block_hash: &bitcoin::BlockHash,
+    m6id: M6id,
+) -> Result<(), Error> {
+    if let Some((bundle, bundle_block_height)) = state
+        .pending_withdrawal_bundle
+        .try_get(rwtxn, &())
+        .map_err(DbError::from)?
+        && bundle.compute_m6id() == m6id
+    {
+        assert_eq!(bundle_block_height, block_height - 1);
+        tracing::debug!(
+            %block_height,
+            %m6id,
+            "Withdrawal bundle successfully submitted"
+        );
+        for (outpoint, spend_output) in bundle.spend_utxos() {
+            let utxo_hash = hash(&PointedOutput {
+                outpoint: *outpoint,
+                output: spend_output.clone(),
+            });
+            accumulator_diff.remove(utxo_hash.into());
+            state.utxos.delete(rwtxn, outpoint).map_err(DbError::from)?;
+            let spent_output = SpentOutput {
+                output: spend_output.clone(),
+                inpoint: InPoint::Withdrawal { m6id },
+            };
+            state
+                .stxos
+                .put(rwtxn, outpoint, &spent_output)
+                .map_err(DbError::from)?;
+        }
+        state
+            .withdrawal_bundles
+            .put(
+                rwtxn,
+                &m6id,
+                &(
+                    WithdrawalBundleInfo::Known(bundle),
+                    RollBack::new(
+                        WithdrawalBundleStatus::Submitted,
+                        block_height,
+                    ),
+                ),
+            )
+            .map_err(DbError::from)?;
+        state
+            .pending_withdrawal_bundle
+            .delete(rwtxn, &())
+            .map_err(DbError::from)?;
+    } else if let Some((_bundle, bundle_status)) = state
+        .withdrawal_bundles
+        .try_get(rwtxn, &m6id)
+        .map_err(DbError::from)?
+    {
+        // Already applied
+        assert_eq!(
+            bundle_status.earliest().value,
+            WithdrawalBundleStatus::Submitted
+        );
+    } else {
+        tracing::warn!(
+            %event_block_hash,
+            %m6id,
+            "Unknown withdrawal bundle submitted"
+        );
+        state
+            .withdrawal_bundles
+            .put(
+                rwtxn,
+                &m6id,
+                &(
+                    WithdrawalBundleInfo::Unknown,
+                    RollBack::new(
+                        WithdrawalBundleStatus::Submitted,
+                        block_height,
+                    ),
+                ),
+            )
+            .map_err(DbError::from)?;
+    };
+    Ok(())
+}
+
+fn connect_withdrawal_bundle_confirmed(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    event_block_hash: &bitcoin::BlockHash,
+    m6id: M6id,
+) -> Result<(), Error> {
+    let (mut bundle, mut bundle_status) = state
+        .withdrawal_bundles
+        .try_get(rwtxn, &m6id)
+        .map_err(DbError::from)?
+        .ok_or(Error::UnknownWithdrawalBundle { m6id })?;
+    if bundle_status.latest().value == WithdrawalBundleStatus::Confirmed {
+        // Already applied
+        return Ok(());
+    }
+    assert_eq!(
+        bundle_status.latest().value,
+        WithdrawalBundleStatus::Submitted
+    );
+    // If an unknown bundle is confirmed, all UTXOs older than the
+    // bundle submission are potentially spent.
+    // This is only accepted in the case that block height is 0,
+    // and so no UTXOs could possibly have been double-spent yet.
+    // In this case, ALL UTXOs are considered spent.
+    if !bundle.is_known() {
+        if block_height == 0 {
+            tracing::warn!(
+                %event_block_hash,
+                %m6id,
+                "Unknown withdrawal bundle confirmed, marking all UTXOs as spent"
+            );
+            let utxos: BTreeMap<_, _> = state
+                .utxos
+                .iter(rwtxn)
+                .map_err(DbError::from)?
+                .collect()
+                .map_err(DbError::from)?;
+            for (outpoint, output) in &utxos {
+                let spent_output = SpentOutput {
+                    output: output.clone(),
+                    inpoint: InPoint::Withdrawal { m6id },
+                };
+                state
+                    .stxos
+                    .put(rwtxn, outpoint, &spent_output)
+                    .map_err(DbError::from)?;
+                let utxo_hash = hash(&PointedOutput {
+                    outpoint: *outpoint,
+                    output: spent_output.output,
+                });
+                accumulator_diff.remove(utxo_hash.into());
+            }
+            state.utxos.clear(rwtxn).map_err(DbError::from)?;
+            bundle =
+                WithdrawalBundleInfo::UnknownConfirmed { spend_utxos: utxos };
+        } else {
+            return Err(Error::UnknownWithdrawalBundleConfirmed {
+                event_block_hash: *event_block_hash,
+                m6id,
+            });
+        }
+    }
+    bundle_status
+        .push(WithdrawalBundleStatus::Confirmed, block_height)
+        .expect("Push confirmed status should be valid");
+    state
+        .withdrawal_bundles
+        .put(rwtxn, &m6id, &(bundle, bundle_status))
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+fn connect_withdrawal_bundle_failed(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    m6id: M6id,
+) -> Result<(), Error> {
+    tracing::debug!(
+        %block_height,
+        %m6id,
+        "Handling failed withdrawal bundle");
+    let (bundle, mut bundle_status) = state
+        .withdrawal_bundles
+        .try_get(rwtxn, &m6id)
+        .map_err(DbError::from)?
+        .ok_or_else(|| Error::UnknownWithdrawalBundle { m6id })?;
+    if bundle_status.latest().value == WithdrawalBundleStatus::Failed {
+        // Already applied
+        return Ok(());
+    }
+    assert_eq!(
+        bundle_status.latest().value,
+        WithdrawalBundleStatus::Submitted
+    );
+    bundle_status
+        .push(WithdrawalBundleStatus::Failed, block_height)
+        .expect("Push failed status should be valid");
+    match &bundle {
+        WithdrawalBundleInfo::Unknown
+        | WithdrawalBundleInfo::UnknownConfirmed { .. } => (),
+        WithdrawalBundleInfo::Known(bundle) => {
+            for (outpoint, output) in bundle.spend_utxos() {
+                state.stxos.delete(rwtxn, outpoint).map_err(DbError::from)?;
+                state
+                    .utxos
+                    .put(rwtxn, outpoint, output)
+                    .map_err(DbError::from)?;
+                let utxo_hash = hash(&PointedOutput {
+                    outpoint: *outpoint,
+                    output: output.clone(),
+                });
+                accumulator_diff.insert(utxo_hash.into());
+            }
+            let latest_failed_m6id = if let Some(mut latest_failed_m6id) = state
+                .latest_failed_withdrawal_bundle
+                .try_get(rwtxn, &())
+                .map_err(DbError::from)?
+            {
+                latest_failed_m6id
+                    .push(m6id, block_height)
+                    .expect("Push latest failed m6id should be valid");
+                latest_failed_m6id
+            } else {
+                RollBack::new(m6id, block_height)
+            };
+            state
+                .latest_failed_withdrawal_bundle
+                .put(rwtxn, &(), &latest_failed_m6id)
+                .map_err(DbError::from)?;
+        }
+    }
+    state
+        .withdrawal_bundles
+        .put(rwtxn, &m6id, &(bundle, bundle_status))
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+fn connect_withdrawal_bundle_event(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    event_block_hash: &bitcoin::BlockHash,
+    event: &WithdrawalBundleEvent,
+) -> Result<(), Error> {
+    match event.status {
+        WithdrawalBundleStatus::Submitted => {
+            connect_withdrawal_bundle_submitted(
+                state,
+                rwtxn,
+                block_height,
+                accumulator_diff,
+                event_block_hash,
+                event.m6id,
+            )
+        }
+        WithdrawalBundleStatus::Confirmed => {
+            connect_withdrawal_bundle_confirmed(
+                state,
+                rwtxn,
+                block_height,
+                accumulator_diff,
+                event_block_hash,
+                event.m6id,
+            )
+        }
+        WithdrawalBundleStatus::Failed => connect_withdrawal_bundle_failed(
+            state,
+            rwtxn,
+            block_height,
+            accumulator_diff,
+            event.m6id,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn connect_event(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    latest_deposit_block_hash: &mut Option<bitcoin::BlockHash>,
+    latest_withdrawal_bundle_event_block_hash: &mut Option<bitcoin::BlockHash>,
+    event_block_hash: bitcoin::BlockHash,
+    event: &BlockEvent,
+) -> Result<(), Error> {
+    match event {
+        BlockEvent::Deposit(deposit) => {
+            let outpoint = OutPoint::Deposit(deposit.outpoint);
+            let output = deposit.output.clone();
+            state
+                .utxos
+                .put(rwtxn, &outpoint, &output)
+                .map_err(DbError::from)?;
+            let utxo_hash = hash(&PointedOutput { outpoint, output });
+            accumulator_diff.insert(utxo_hash.into());
+            *latest_deposit_block_hash = Some(event_block_hash);
+        }
+        BlockEvent::WithdrawalBundle(withdrawal_bundle_event) => {
+            let () = connect_withdrawal_bundle_event(
+                state,
+                rwtxn,
+                block_height,
+                accumulator_diff,
+                &event_block_hash,
+                withdrawal_bundle_event,
+            )?;
+            *latest_withdrawal_bundle_event_block_hash = Some(event_block_hash);
+        }
+    }
+    Ok(())
+}
+
+pub fn connect(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    two_way_peg_data: &TwoWayPegData,
+) -> Result<(), Error> {
+    let block_height = state.try_get_height(rwtxn)?.ok_or(Error::NoTip)?;
+    tracing::trace!(%block_height, "Connecting 2WPD...");
+    let mut accumulator = state
+        .utreexo_accumulator
+        .try_get(rwtxn, &())
+        .map_err(DbError::from)?
+        .unwrap_or_default();
+    let mut accumulator_diff = AccumulatorDiff::default();
+    let mut latest_deposit_block_hash = None;
+    let mut latest_withdrawal_bundle_event_block_hash = None;
+    for (event_block_hash, event_block_info) in &two_way_peg_data.block_info {
+        for event in &event_block_info.events {
+            let () = connect_event(
+                state,
+                rwtxn,
+                block_height,
+                &mut accumulator_diff,
+                &mut latest_deposit_block_hash,
+                &mut latest_withdrawal_bundle_event_block_hash,
+                *event_block_hash,
+                event,
+            )?;
+        }
+    }
+    // Handle deposits.
+    if let Some(latest_deposit_block_hash) = latest_deposit_block_hash {
+        let deposit_block_seq_idx = state
+            .deposit_blocks
+            .last(rwtxn)
+            .map_err(DbError::from)?
+            .map_or(0, |(seq_idx, _)| seq_idx + 1);
+        state
+            .deposit_blocks
+            .put(
+                rwtxn,
+                &deposit_block_seq_idx,
+                &(latest_deposit_block_hash, block_height),
+            )
+            .map_err(DbError::from)?;
+    }
+    // Handle withdrawals
+    if let Some(latest_withdrawal_bundle_event_block_hash) =
+        latest_withdrawal_bundle_event_block_hash
+    {
+        let withdrawal_bundle_event_block_seq_idx = state
+            .withdrawal_bundle_event_blocks
+            .last(rwtxn)
+            .map_err(DbError::from)?
+            .map_or(0, |(seq_idx, _)| seq_idx + 1);
+        state
+            .withdrawal_bundle_event_blocks
+            .put(
+                rwtxn,
+                &withdrawal_bundle_event_block_seq_idx,
+                &(latest_withdrawal_bundle_event_block_hash, block_height),
+            )
+            .map_err(DbError::from)?;
+    }
+    let last_withdrawal_bundle_failure_height = state
+        .get_latest_failed_withdrawal_bundle(rwtxn)
+        .map_err(DbError::from)?
+        .map(|(height, _bundle)| height)
+        .unwrap_or_default();
+    if block_height - last_withdrawal_bundle_failure_height
+        >= WITHDRAWAL_BUNDLE_FAILURE_GAP
+        && state
+            .pending_withdrawal_bundle
+            .try_get(rwtxn, &())
+            .map_err(DbError::from)?
+            .is_none()
+        && let Some(bundle) =
+            collect_withdrawal_bundle(state, rwtxn, block_height)?
+    {
+        let m6id = bundle.compute_m6id();
+        state
+            .pending_withdrawal_bundle
+            .put(rwtxn, &(), &(bundle, block_height))
+            .map_err(DbError::from)?;
+        tracing::trace!(
+            %block_height,
+            %m6id,
+            "Stored pending withdrawal bundle"
+        );
+    }
+    let () = accumulator.apply_diff(accumulator_diff)?;
+    state
+        .utreexo_accumulator
+        .put(rwtxn, &(), &accumulator)
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+fn disconnect_withdrawal_bundle_submitted(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    m6id: M6id,
+) -> Result<(), Error> {
+    let Some((bundle, bundle_status)) = state
+        .withdrawal_bundles
+        .try_get(rwtxn, &m6id)
+        .map_err(DbError::from)?
+    else {
+        if let Some((bundle, _)) = state
+            .pending_withdrawal_bundle
+            .try_get(rwtxn, &())
+            .map_err(DbError::from)?
+            && bundle.compute_m6id() == m6id
+        {
+            // Already applied
+            return Ok(());
+        } else {
+            return Err(Error::UnknownWithdrawalBundle { m6id });
+        }
+    };
+    let bundle_status = bundle_status.latest();
+    assert_eq!(bundle_status.value, WithdrawalBundleStatus::Submitted);
+    assert_eq!(bundle_status.height, block_height);
+    match bundle {
+        WithdrawalBundleInfo::Unknown
+        | WithdrawalBundleInfo::UnknownConfirmed { .. } => (),
+        WithdrawalBundleInfo::Known(bundle) => {
+            for (outpoint, output) in bundle.spend_utxos().iter().rev() {
+                if !state
+                    .stxos
+                    .delete(rwtxn, outpoint)
+                    .map_err(DbError::from)?
+                {
+                    return Err(Error::NoStxo {
+                        outpoint: *outpoint,
+                    });
+                };
+                state
+                    .utxos
+                    .put(rwtxn, outpoint, output)
+                    .map_err(DbError::from)?;
+                let utxo_hash = hash(&PointedOutput {
+                    outpoint: *outpoint,
+                    output: output.clone(),
+                });
+                accumulator_diff.insert(utxo_hash.into());
+            }
+            state
+                .pending_withdrawal_bundle
+                .put(rwtxn, &(), &(bundle, bundle_status.height - 1))
+                .map_err(DbError::from)?;
+        }
+    }
+    state
+        .withdrawal_bundles
+        .delete(rwtxn, &m6id)
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+fn disconnect_withdrawal_bundle_confirmed(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    m6id: M6id,
+) -> Result<(), Error> {
+    let (mut bundle, bundle_status) = state
+        .withdrawal_bundles
+        .try_get(rwtxn, &m6id)
+        .map_err(DbError::from)?
+        .ok_or_else(|| Error::UnknownWithdrawalBundle { m6id })?;
+    let (prev_bundle_status, latest_bundle_status) = bundle_status.pop();
+    if latest_bundle_status.value == WithdrawalBundleStatus::Submitted {
+        // Already applied
+        return Ok(());
+    }
+    assert_eq!(
+        latest_bundle_status.value,
+        WithdrawalBundleStatus::Confirmed
+    );
+    assert_eq!(latest_bundle_status.height, block_height);
+    let prev_bundle_status = prev_bundle_status
+        .expect("Pop confirmed bundle status should be valid");
+    assert_eq!(
+        prev_bundle_status.latest().value,
+        WithdrawalBundleStatus::Submitted
+    );
+    match bundle {
+        WithdrawalBundleInfo::Known(_) | WithdrawalBundleInfo::Unknown => (),
+        WithdrawalBundleInfo::UnknownConfirmed { spend_utxos } => {
+            for (outpoint, output) in spend_utxos {
+                state
+                    .utxos
+                    .put(rwtxn, &outpoint, &output)
+                    .map_err(DbError::from)?;
+                if !state
+                    .stxos
+                    .delete(rwtxn, &outpoint)
+                    .map_err(DbError::from)?
+                {
+                    return Err(Error::NoStxo { outpoint });
+                };
+                let utxo_hash = hash(&PointedOutput { outpoint, output });
+                accumulator_diff.insert(utxo_hash.into());
+            }
+            bundle = WithdrawalBundleInfo::Unknown;
+        }
+    }
+    state
+        .withdrawal_bundles
+        .put(rwtxn, &m6id, &(bundle, prev_bundle_status))
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+fn disconnect_withdrawal_bundle_failed(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    m6id: M6id,
+) -> Result<(), Error> {
+    let (bundle, bundle_status) = state
+        .withdrawal_bundles
+        .try_get(rwtxn, &m6id)
+        .map_err(DbError::from)?
+        .ok_or_else(|| Error::UnknownWithdrawalBundle { m6id })?;
+    let (prev_bundle_status, latest_bundle_status) = bundle_status.pop();
+    if latest_bundle_status.value == WithdrawalBundleStatus::Submitted {
+        // Already applied
+        return Ok(());
+    } else {
+        assert_eq!(latest_bundle_status.value, WithdrawalBundleStatus::Failed);
+    }
+    assert_eq!(latest_bundle_status.height, block_height);
+    let prev_bundle_status =
+        prev_bundle_status.expect("Pop failed bundle status should be valid");
+    assert_eq!(
+        prev_bundle_status.latest().value,
+        WithdrawalBundleStatus::Submitted
+    );
+    match &bundle {
+        WithdrawalBundleInfo::Unknown
+        | WithdrawalBundleInfo::UnknownConfirmed { .. } => (),
+        WithdrawalBundleInfo::Known(bundle) => {
+            for (outpoint, output) in bundle.spend_utxos().iter().rev() {
+                let spent_output = SpentOutput {
+                    output: output.clone(),
+                    inpoint: InPoint::Withdrawal { m6id },
+                };
+                state
+                    .stxos
+                    .put(rwtxn, outpoint, &spent_output)
+                    .map_err(DbError::from)?;
+                if state.utxos.delete(rwtxn, outpoint).map_err(DbError::from)? {
+                    return Err(Error::NoUtxo {
+                        outpoint: *outpoint,
+                    });
+                };
+                let utxo_hash = hash(&PointedOutput {
+                    outpoint: *outpoint,
+                    output: output.clone(),
+                });
+                accumulator_diff.remove(utxo_hash.into());
+            }
+            let (prev_latest_failed_m6id, latest_failed_m6id) = state
+                .latest_failed_withdrawal_bundle
+                .try_get(rwtxn, &())
+                .map_err(DbError::from)?
+                .expect("latest failed withdrawal bundle should exist")
+                .pop();
+            assert_eq!(latest_failed_m6id.value, m6id);
+            assert_eq!(latest_failed_m6id.height, block_height);
+            if let Some(prev_latest_failed_m6id) = prev_latest_failed_m6id {
+                state
+                    .latest_failed_withdrawal_bundle
+                    .put(rwtxn, &(), &prev_latest_failed_m6id)
+                    .map_err(DbError::from)?;
+            } else {
+                state
+                    .latest_failed_withdrawal_bundle
+                    .delete(rwtxn, &())
+                    .map_err(DbError::from)?;
+            }
+        }
+    }
+    state
+        .withdrawal_bundles
+        .put(rwtxn, &m6id, &(bundle, prev_bundle_status))
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+fn disconnect_withdrawal_bundle_event(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    event: &WithdrawalBundleEvent,
+) -> Result<(), Error> {
+    match event.status {
+        WithdrawalBundleStatus::Submitted => {
+            disconnect_withdrawal_bundle_submitted(
+                state,
+                rwtxn,
+                block_height,
+                accumulator_diff,
+                event.m6id,
+            )
+        }
+        WithdrawalBundleStatus::Confirmed => {
+            disconnect_withdrawal_bundle_confirmed(
+                state,
+                rwtxn,
+                block_height,
+                accumulator_diff,
+                event.m6id,
+            )
+        }
+        WithdrawalBundleStatus::Failed => disconnect_withdrawal_bundle_failed(
+            state,
+            rwtxn,
+            block_height,
+            accumulator_diff,
+            event.m6id,
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn disconnect_event(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    block_height: u32,
+    accumulator_diff: &mut AccumulatorDiff,
+    latest_deposit_block_hash: &mut Option<bitcoin::BlockHash>,
+    latest_withdrawal_bundle_event_block_hash: &mut Option<bitcoin::BlockHash>,
+    event_block_hash: bitcoin::BlockHash,
+    event: &BlockEvent,
+) -> Result<(), Error> {
+    match event {
+        BlockEvent::Deposit(deposit) => {
+            let outpoint = OutPoint::Deposit(deposit.outpoint);
+            let output = deposit.output.clone();
+            if !state
+                .utxos
+                .delete(rwtxn, &outpoint)
+                .map_err(DbError::from)?
+            {
+                return Err(Error::NoUtxo { outpoint });
+            }
+            let utxo_hash = hash(&PointedOutput { outpoint, output });
+            accumulator_diff.remove(utxo_hash.into());
+            *latest_deposit_block_hash = Some(event_block_hash);
+        }
+        BlockEvent::WithdrawalBundle(withdrawal_bundle_event) => {
+            let () = disconnect_withdrawal_bundle_event(
+                state,
+                rwtxn,
+                block_height,
+                accumulator_diff,
+                withdrawal_bundle_event,
+            )?;
+            *latest_withdrawal_bundle_event_block_hash = Some(event_block_hash);
+        }
+    }
+    Ok(())
+}
+
+pub fn disconnect(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    two_way_peg_data: &TwoWayPegData,
+) -> Result<(), Error> {
+    let block_height = state
+        .try_get_height(rwtxn)?
+        .expect("Height should not be None");
+    let mut accumulator = state
+        .utreexo_accumulator
+        .try_get(rwtxn, &())
+        .map_err(DbError::from)?
+        .unwrap_or_default();
+    let mut accumulator_diff = AccumulatorDiff::default();
+    let mut latest_deposit_block_hash = None;
+    let mut latest_withdrawal_bundle_event_block_hash = None;
+    // Restore pending withdrawal bundle
+    for (event_block_hash, event_block_info) in
+        two_way_peg_data.block_info.iter().rev()
+    {
+        for event in event_block_info.events.iter().rev() {
+            let () = disconnect_event(
+                state,
+                rwtxn,
+                block_height,
+                &mut accumulator_diff,
+                &mut latest_deposit_block_hash,
+                &mut latest_withdrawal_bundle_event_block_hash,
+                *event_block_hash,
+                event,
+            )?;
+        }
+    }
+    // Handle withdrawals
+    if let Some(latest_withdrawal_bundle_event_block_hash) =
+        latest_withdrawal_bundle_event_block_hash
+    {
+        let (
+            last_withdrawal_bundle_event_block_seq_idx,
+            (
+                last_withdrawal_bundle_event_block_hash,
+                last_withdrawal_bundle_event_block_height,
+            ),
+        ) = state
+            .withdrawal_bundle_event_blocks
+            .last(rwtxn)
+            .map_err(DbError::from)?
+            .ok_or(Error::NoWithdrawalBundleEventBlock)?;
+        assert_eq!(
+            latest_withdrawal_bundle_event_block_hash,
+            last_withdrawal_bundle_event_block_hash
+        );
+        assert_eq!(block_height - 1, last_withdrawal_bundle_event_block_height);
+        if !state
+            .deposit_blocks
+            .delete(rwtxn, &last_withdrawal_bundle_event_block_seq_idx)
+            .map_err(DbError::from)?
+        {
+            return Err(Error::NoWithdrawalBundleEventBlock);
+        };
+    }
+    let last_withdrawal_bundle_failure_height = state
+        .get_latest_failed_withdrawal_bundle(rwtxn)
+        .map_err(DbError::from)?
+        .map(|(height, _bundle)| height)
+        .unwrap_or_default();
+    if block_height - last_withdrawal_bundle_failure_height
+        > WITHDRAWAL_BUNDLE_FAILURE_GAP
+        && let Some((_bundle, bundle_height)) = state
+            .pending_withdrawal_bundle
+            .try_get(rwtxn, &())
+            .map_err(DbError::from)?
+        && bundle_height == block_height - 1
+    {
+        state
+            .pending_withdrawal_bundle
+            .delete(rwtxn, &())
+            .map_err(DbError::from)?;
+    }
+    // Handle deposits.
+    if let Some(latest_deposit_block_hash) = latest_deposit_block_hash {
+        let (
+            last_deposit_block_seq_idx,
+            (last_deposit_block_hash, last_deposit_block_height),
+        ) = state
+            .deposit_blocks
+            .last(rwtxn)
+            .map_err(DbError::from)?
+            .ok_or(Error::NoDepositBlock)?;
+        assert_eq!(latest_deposit_block_hash, last_deposit_block_hash);
+        assert_eq!(block_height - 1, last_deposit_block_height);
+        if !state
+            .deposit_blocks
+            .delete(rwtxn, &last_deposit_block_seq_idx)
+            .map_err(DbError::from)?
+        {
+            return Err(Error::NoDepositBlock);
+        };
+    }
+    let () = accumulator.apply_diff(accumulator_diff)?;
+    state
+        .utreexo_accumulator
+        .put(rwtxn, &(), &accumulator)
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+```
+
+
+                
+                
+
+[RESPONSE]
+
+Summary:  
+This file manages the connection and disconnection of two-way peg (2WP) data during block sync, handling deposits and withdrawal bundles, updating UTXO sets, and maintaining a Utreexo accumulator to reflect state changes for sidechain/mainchain interoperability.
+
+Performance relevance:  
+UTXO management, validation logic, and accumulator (Utreexo) updates—all critical to block sync and validation performance.
+
+Optimizations:
+- **Parallelization:** UTXO aggregation and iteration (e.g., in `collect_withdrawal_bundle` and UTXO batch updates) could be parallelized using Rayon’s parallel iterators if underlying data structures (and db backends) support concurrency.
+- **Batch/Bulk DB Operations:** Instead of repeated single put/delete calls, grouping DB writes/deletes into bulk (batched) operations can reduce transaction/IO overhead, especially in tight loops over UTXOs/outputs.
+- **Memory-mapped I/O:** If underlying storage supports it, using mmap for UTXO sets can improve iteration and random access speed.
+- **Accumulator optimizations:** Ensure accumulator (Utreexo) diff applications are batched and as atomic as possible; consider using accumulator caching for frequently accessed states.
+- **Minimize Clones:** Reduce `.clone()` usage in tight loops (e.g., output cloning in `collect_withdrawal_bundle`), as unnecessary cloning can add up with large UTXO sets.
+- **Efficient Data Structures:** For large numbers of outputs, consider using skiplist or other cache-friendly structures for spend_utxos/bundle_outputs to optimize insertion and iteration.
+
+If you want focused advice on a specific bottleneck or function, provide usage context or profiling data.
+
+[/home/admin/--DEV--/AI/kahuna_tests/thunder-rust-waldi/lib/state/two_way_peg_data.rs]
+
+Summary:  
+This file manages the connection and disconnection of two-way peg (2WP) data during block sync, handling deposits and withdrawal bundles, updating UTXO sets, and maintaining a Utreexo accumulator to reflect state changes for sidechain/mainchain interoperability.
+
+Performance relevance:  
+UTXO management, validation logic, and accumulator (Utreexo) updates—all critical to block sync and validation performance.
+
+Optimizations:
+- **Parallelization:** UTXO aggregation and iteration (e.g., in `collect_withdrawal_bundle` and UTXO batch updates) could be parallelized using Rayon’s parallel iterators if underlying data structures (and db backends) support concurrency.
+- **Batch/Bulk DB Operations:** Instead of repeated single put/delete calls, grouping DB writes/deletes into bulk (batched) operations can reduce transaction/IO overhead, especially in tight loops over UTXOs/outputs.
+- **Memory-mapped I/O:** If underlying storage supports it, using mmap for UTXO sets can improve iteration and random access speed.
+- **Accumulator optimizations:** Ensure accumulator (Utreexo) diff applications are batched and as atomic as possible; consider using accumulator caching for frequently accessed states.
+- **Minimize Clones:** Reduce `.clone()` usage in tight loops (e.g., output cloning in `collect_withdrawal_bundle`), as unnecessary cloning can add up with large UTXO sets.
+- **Efficient Data Structures:** For large numbers of outputs, consider using skiplist or other cache-friendly structures for spend_utxos/bundle_outputs to optimize insertion and iteration.
+
+If you want focused advice on a specific bottleneck or function, provide usage context or profiling data.
+
+[PROMPT]
+
+
+
+                
+
+You are a world-class Rust & Bitcoin Core engineer, up to speed on Eric Voskuil’s performance breakthroughs (e.g., SwiftSync, accumulator-based UTXO, parallel IBD).
+
+For the Rust file content below, return:
+
+1. Summary (1 sentence): what this file does in block sync/validation flow.
+2. Performance relevance: is it related to parsing, disk I/O, validation, UTXO management, or another sync bottleneck? If not, reply "Not related to syncing or performance."
+3. Optimizations (if relevant): list concrete Rust improvements (parallel parsing with Rayon, accumulator or skiplist, memory-mapped I/O, batch/caching). Only suggest ideas you're confident apply. If uncertain, say "uncertain—need more code context."
+4. If the file is CLI/UI/test/build, only reply "Not related to syncing or performance."
+
+Format:
+Summary: …
+Performance relevance: …
+Optimizations:
+- …
+- …
+
+File content:
+```rust
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use fallible_iterator::FallibleIterator;
+use futures::Stream;
+use heed::types::SerdeBincode;
+use rustreexo::accumulator::{node_hash::BitcoinNodeHash, proof::Proof};
+use serde::{Deserialize, Serialize};
+use sneed::{
+    DatabaseUnique, RoTxn, RwTxn, UnitKey,
+    db::error::{self as db_error, Error as DbError},
+    env::Error as EnvError,
+    rwtxn::Error as RwTxnError,
+};
+
+use crate::{
+    authorization::Authorization,
+    types::{
+        Accumulator, Address, AmountOverflowError, AmountUnderflowError,
+        AuthorizedTransaction, BlockHash, Body, FilledTransaction, GetAddress,
+        GetValue, Header, InPoint, M6id, OutPoint, Output, PointedOutput,
+        SpentOutput, Transaction, VERSION, Verify, Version, WithdrawalBundle,
+        WithdrawalBundleStatus, proto::mainchain::TwoWayPegData,
+    },
+    util::Watchable,
+};
+
+mod block;
+mod error;
+mod rollback;
+mod two_way_peg_data;
+
+pub use error::Error;
+use rollback::RollBack;
+
+pub const WITHDRAWAL_BUNDLE_FAILURE_GAP: u32 = 4;
+
+/// Information we have regarding a withdrawal bundle
+#[derive(Debug, Deserialize, Serialize)]
+enum WithdrawalBundleInfo {
+    /// Withdrawal bundle is known
+    Known(WithdrawalBundle),
+    /// Withdrawal bundle is unknown but unconfirmed / failed
+    Unknown,
+    /// If an unknown withdrawal bundle is confirmed, ALL UTXOs are
+    /// considered spent.
+    UnknownConfirmed {
+        spend_utxos: BTreeMap<OutPoint, Output>,
+    },
+}
+
+impl WithdrawalBundleInfo {
+    fn is_known(&self) -> bool {
+        match self {
+            Self::Known(_) => true,
+            Self::Unknown | Self::UnknownConfirmed { .. } => false,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct State {
+    /// Current tip
+    tip: DatabaseUnique<UnitKey, SerdeBincode<BlockHash>>,
+    /// Current height
+    height: DatabaseUnique<UnitKey, SerdeBincode<u32>>,
+    pub utxos: DatabaseUnique<SerdeBincode<OutPoint>, SerdeBincode<Output>>,
+    pub stxos:
+        DatabaseUnique<SerdeBincode<OutPoint>, SerdeBincode<SpentOutput>>,
+    /// Pending withdrawal bundle and block height
+    pub pending_withdrawal_bundle:
+        DatabaseUnique<UnitKey, SerdeBincode<(WithdrawalBundle, u32)>>,
+    /// Latest failed (known) withdrawal bundle
+    latest_failed_withdrawal_bundle:
+        DatabaseUnique<UnitKey, SerdeBincode<RollBack<M6id>>>,
+    /// Withdrawal bundles and their status.
+    /// Some withdrawal bundles may be unknown.
+    /// in which case they are `None`.
+    withdrawal_bundles: DatabaseUnique<
+        SerdeBincode<M6id>,
+        SerdeBincode<(WithdrawalBundleInfo, RollBack<WithdrawalBundleStatus>)>,
+    >,
+    /// deposit blocks and the height at which they were applied, keyed sequentially
+    pub deposit_blocks: DatabaseUnique<
+        SerdeBincode<u32>,
+        SerdeBincode<(bitcoin::BlockHash, u32)>,
+    >,
+    /// withdrawal bundle event blocks and the height at which they were applied, keyed sequentially
+    pub withdrawal_bundle_event_blocks: DatabaseUnique<
+        SerdeBincode<u32>,
+        SerdeBincode<(bitcoin::BlockHash, u32)>,
+    >,
+    pub utreexo_accumulator: DatabaseUnique<UnitKey, SerdeBincode<Accumulator>>,
+    _version: DatabaseUnique<UnitKey, SerdeBincode<Version>>,
+}
+
+impl State {
+    pub const NUM_DBS: u32 = 11;
+
+    pub fn new(env: &sneed::Env) -> Result<Self, Error> {
+        let mut rwtxn = env.write_txn().map_err(EnvError::from)?;
+        let tip = DatabaseUnique::create(env, &mut rwtxn, "tip")
+            .map_err(EnvError::from)?;
+        let height = DatabaseUnique::create(env, &mut rwtxn, "height")
+            .map_err(EnvError::from)?;
+        let utxos = DatabaseUnique::create(env, &mut rwtxn, "utxos")
+            .map_err(EnvError::from)?;
+        let stxos = DatabaseUnique::create(env, &mut rwtxn, "stxos")
+            .map_err(EnvError::from)?;
+        let pending_withdrawal_bundle = DatabaseUnique::create(
+            env,
+            &mut rwtxn,
+            "pending_withdrawal_bundle",
+        )
+        .map_err(EnvError::from)?;
+        let latest_failed_withdrawal_bundle = DatabaseUnique::create(
+            env,
+            &mut rwtxn,
+            "latest_failed_withdrawal_bundle",
+        )
+        .map_err(EnvError::from)?;
+        let withdrawal_bundles =
+            DatabaseUnique::create(env, &mut rwtxn, "withdrawal_bundles")
+                .map_err(EnvError::from)?;
+        let deposit_blocks =
+            DatabaseUnique::create(env, &mut rwtxn, "deposit_blocks")
+                .map_err(EnvError::from)?;
+        let withdrawal_bundle_event_blocks = DatabaseUnique::create(
+            env,
+            &mut rwtxn,
+            "withdrawal_bundle_event_blocks",
+        )
+        .map_err(EnvError::from)?;
+        let utreexo_accumulator =
+            DatabaseUnique::create(env, &mut rwtxn, "utreexo_accumulator")
+                .map_err(EnvError::from)?;
+        let version = DatabaseUnique::create(env, &mut rwtxn, "state_version")
+            .map_err(EnvError::from)?;
+        if version
+            .try_get(&rwtxn, &())
+            .map_err(DbError::from)?
+            .is_none()
+        {
+            version
+                .put(&mut rwtxn, &(), &*VERSION)
+                .map_err(DbError::from)?;
+        }
+        rwtxn.commit().map_err(RwTxnError::from)?;
+        Ok(Self {
+            tip,
+            height,
+            utxos,
+            stxos,
+            pending_withdrawal_bundle,
+            latest_failed_withdrawal_bundle,
+            withdrawal_bundles,
+            deposit_blocks,
+            withdrawal_bundle_event_blocks,
+            utreexo_accumulator,
+            _version: version,
+        })
+    }
+
+    pub fn try_get_tip(
+        &self,
+        rotxn: &RoTxn,
+    ) -> Result<Option<BlockHash>, Error> {
+        let tip = self.tip.try_get(rotxn, &())?;
+        Ok(tip)
+    }
+
+    pub fn try_get_height(&self, rotxn: &RoTxn) -> Result<Option<u32>, Error> {
+        let height = self.height.try_get(rotxn, &())?;
+        Ok(height)
+    }
+
+    pub fn get_utxos(
+        &self,
+        rotxn: &RoTxn,
+    ) -> Result<HashMap<OutPoint, Output>, db_error::Iter> {
+        let utxos = self.utxos.iter(rotxn)?.collect()?;
+        Ok(utxos)
+    }
+
+    pub fn get_utxos_by_addresses(
+        &self,
+        rotxn: &RoTxn,
+        addresses: &HashSet<Address>,
+    ) -> Result<HashMap<OutPoint, Output>, db_error::Iter> {
+        let utxos = self
+            .utxos
+            .iter(rotxn)?
+            .filter(|(_, output)| Ok(addresses.contains(&output.address)))
+            .collect()?;
+        Ok(utxos)
+    }
+
+    /// Get the latest failed withdrawal bundle, and the height at which it failed
+    pub fn get_latest_failed_withdrawal_bundle(
+        &self,
+        rotxn: &RoTxn,
+    ) -> Result<Option<(u32, M6id)>, db_error::TryGet> {
+        let Some(latest_failed_m6id) =
+            self.latest_failed_withdrawal_bundle.try_get(rotxn, &())?
+        else {
+            return Ok(None);
+        };
+        let latest_failed_m6id = latest_failed_m6id.latest().value;
+        let (_bundle, bundle_status) = self.withdrawal_bundles.try_get(rotxn, &latest_failed_m6id)?
+            .expect("Inconsistent DBs: latest failed m6id should exist in withdrawal_bundles");
+        let bundle_status = bundle_status.latest();
+        assert_eq!(bundle_status.value, WithdrawalBundleStatus::Failed);
+        Ok(Some((bundle_status.height, latest_failed_m6id)))
+    }
+
+    /// Get the current Utreexo accumulator
+    pub fn get_accumulator(&self, rotxn: &RoTxn) -> Result<Accumulator, Error> {
+        let accumulator = self
+            .utreexo_accumulator
+            .try_get(rotxn, &())
+            .map_err(DbError::from)?
+            .unwrap_or_default();
+        Ok(accumulator)
+    }
+
+    /// Regenerate utreexo proof for a tx
+    pub fn regenerate_proof(
+        &self,
+        rotxn: &RoTxn,
+        tx: &mut Transaction,
+    ) -> Result<(), Error> {
+        let accumulator = self.get_accumulator(rotxn)?;
+        let targets: Vec<_> = tx
+            .inputs
+            .iter()
+            .map(|(_, utxo_hash)| utxo_hash.into())
+            .collect();
+        tx.proof = accumulator.prove(&targets)?;
+        Ok(())
+    }
+
+    /// Get a Utreexo proof for the provided utxos
+    pub fn get_utreexo_proof<'a, Utxos>(
+        &self,
+        rotxn: &RoTxn,
+        utxos: Utxos,
+    ) -> Result<Proof, Error>
+    where
+        Utxos: IntoIterator<Item = &'a PointedOutput>,
+    {
+        let accumulator = self.get_accumulator(rotxn)?;
+        let targets: Vec<BitcoinNodeHash> =
+            utxos.into_iter().map(BitcoinNodeHash::from).collect();
+        let proof = accumulator.prove(&targets)?;
+        Ok(proof)
+    }
+
+    pub fn fill_transaction(
+        &self,
+        txn: &RoTxn,
+        transaction: &Transaction,
+    ) -> Result<FilledTransaction, Error> {
+        let mut spent_utxos = vec![];
+        for (outpoint, _) in &transaction.inputs {
+            let utxo = self
+                .utxos
+                .try_get(txn, outpoint)
+                .map_err(DbError::from)?
+                .ok_or(Error::NoUtxo {
+                    outpoint: *outpoint,
+                })?;
+            spent_utxos.push(utxo);
+        }
+        Ok(FilledTransaction {
+            spent_utxos,
+            transaction: transaction.clone(),
+        })
+    }
+
+    /// Get pending withdrawal bundle and block height
+    pub fn get_pending_withdrawal_bundle(
+        &self,
+        txn: &RoTxn,
+    ) -> Result<Option<(WithdrawalBundle, u32)>, Error> {
+        Ok(self
+            .pending_withdrawal_bundle
+            .try_get(txn, &())
+            .map_err(DbError::from)?)
+    }
+
+    pub fn validate_filled_transaction(
+        &self,
+        transaction: &FilledTransaction,
+    ) -> Result<bitcoin::Amount, Error> {
+        let mut value_in = bitcoin::Amount::ZERO;
+        let mut value_out = bitcoin::Amount::ZERO;
+        for utxo in &transaction.spent_utxos {
+            value_in = value_in
+                .checked_add(utxo.get_value())
+                .ok_or(AmountOverflowError)?;
+        }
+        for output in &transaction.transaction.outputs {
+            value_out = value_out
+                .checked_add(output.get_value())
+                .ok_or(AmountOverflowError)?;
+        }
+        if value_out > value_in {
+            return Err(Error::NotEnoughValueIn);
+        }
+        value_in
+            .checked_sub(value_out)
+            .ok_or_else(|| AmountUnderflowError.into())
+    }
+
+    pub fn validate_transaction(
+        &self,
+        rotxn: &RoTxn,
+        transaction: &AuthorizedTransaction,
+    ) -> Result<bitcoin::Amount, Error> {
+        let filled_transaction =
+            self.fill_transaction(rotxn, &transaction.transaction)?;
+        for (authorization, spent_utxo) in transaction
+            .authorizations
+            .iter()
+            .zip(filled_transaction.spent_utxos.iter())
+        {
+            if authorization.get_address() != spent_utxo.address {
+                return Err(Error::WrongPubKeyForAddress);
+            }
+        }
+        if Authorization::verify_transaction(transaction).is_err() {
+            return Err(Error::AuthorizationError);
+        }
+        let fee = self.validate_filled_transaction(&filled_transaction)?;
+        Ok(fee)
+    }
+
+    const LIMIT_GROWTH_EXPONENT: f64 = 1.04;
+
+    pub fn body_sigops_limit(height: u32) -> usize {
+        // Starting body size limit is 8MB = 8 * 1024 * 1024 B
+        // 2 input 2 output transaction is 392 B
+        // 2 * ceil(8 * 1024 * 1024 B / 392 B) = 42800
+        const START: usize = 42800;
+        let month = height / (6 * 24 * 30);
+        if month < 120 {
+            (START as f64 * Self::LIMIT_GROWTH_EXPONENT.powi(month as i32))
+                .floor() as usize
+        } else {
+            // 1.04 ** 120 = 110.6625
+            // So we are rounding up.
+            START * 111
+        }
+    }
+
+    // in bytes
+    pub fn body_size_limit(height: u32) -> usize {
+        // 8MB starting body size limit.
+        const START: usize = 8 * 1024 * 1024;
+        let month = height / (6 * 24 * 30);
+        if month < 120 {
+            (START as f64 * Self::LIMIT_GROWTH_EXPONENT.powi(month as i32))
+                .floor() as usize
+        } else {
+            // 1.04 ** 120 = 110.6625
+            // So we are rounding up.
+            START * 111
+        }
+    }
+
+    pub fn get_last_deposit_block_hash(
+        &self,
+        rotxn: &RoTxn,
+    ) -> Result<Option<bitcoin::BlockHash>, Error> {
+        let block_hash = self
+            .deposit_blocks
+            .last(rotxn)
+            .map_err(DbError::from)?
+            .map(|(_, (block_hash, _))| block_hash);
+        Ok(block_hash)
+    }
+
+    pub fn get_last_withdrawal_bundle_event_block_hash(
+        &self,
+        rotxn: &RoTxn,
+    ) -> Result<Option<bitcoin::BlockHash>, Error> {
+        let block_hash = self
+            .withdrawal_bundle_event_blocks
+            .last(rotxn)
+            .map_err(DbError::from)?
+            .map(|(_, (block_hash, _))| block_hash);
+        Ok(block_hash)
+    }
+
+    /// Get total sidechain wealth in Bitcoin
+    pub fn sidechain_wealth(
+        &self,
+        rotxn: &RoTxn,
+    ) -> Result<bitcoin::Amount, Error> {
+        let mut total_deposit_utxo_value = bitcoin::Amount::ZERO;
+        self.utxos
+            .iter(rotxn)
+            .map_err(DbError::from)?
+            .map_err(|err| DbError::from(err).into())
+            .for_each(|(outpoint, output)| {
+                if let OutPoint::Deposit(_) = outpoint {
+                    total_deposit_utxo_value = total_deposit_utxo_value
+                        .checked_add(output.get_value())
+                        .ok_or(AmountOverflowError)?;
+                }
+                Ok::<_, Error>(())
+            })?;
+        let mut total_deposit_stxo_value = bitcoin::Amount::ZERO;
+        let mut total_withdrawal_stxo_value = bitcoin::Amount::ZERO;
+        self.stxos
+            .iter(rotxn)
+            .map_err(DbError::from)?
+            .map_err(|err| DbError::from(err).into())
+            .for_each(|(outpoint, spent_output)| {
+                if let OutPoint::Deposit(_) = outpoint {
+                    total_deposit_stxo_value = total_deposit_stxo_value
+                        .checked_add(spent_output.output.get_value())
+                        .ok_or(AmountOverflowError)?;
+                }
+                if let InPoint::Withdrawal { .. } = spent_output.inpoint {
+                    total_withdrawal_stxo_value = total_deposit_stxo_value
+                        .checked_add(spent_output.output.get_value())
+                        .ok_or(AmountOverflowError)?;
+                }
+                Ok::<_, Error>(())
+            })?;
+
+        let total_wealth: bitcoin::Amount = total_deposit_utxo_value
+            .checked_add(total_deposit_stxo_value)
+            .ok_or(AmountOverflowError)?
+            .checked_sub(total_withdrawal_stxo_value)
+            .ok_or(AmountOverflowError)?;
+        Ok(total_wealth)
+    }
+
+    pub fn validate_block(
+        &self,
+        rotxn: &RoTxn,
+        header: &Header,
+        body: &Body,
+    ) -> Result<bitcoin::Amount, Error> {
+        block::validate(self, rotxn, header, body)
+    }
+
+    pub fn connect_block(
+        &self,
+        rwtxn: &mut RwTxn,
+        header: &Header,
+        body: &Body,
+    ) -> Result<(), Error> {
+        block::connect(self, rwtxn, header, body)
+    }
+
+    pub fn disconnect_tip(
+        &self,
+        rwtxn: &mut RwTxn,
+        header: &Header,
+        body: &Body,
+    ) -> Result<(), Error> {
+        block::disconnect_tip(self, rwtxn, header, body)
+    }
+
+    pub fn connect_two_way_peg_data(
+        &self,
+        rwtxn: &mut RwTxn,
+        two_way_peg_data: &TwoWayPegData,
+    ) -> Result<(), Error> {
+        two_way_peg_data::connect(self, rwtxn, two_way_peg_data)
+    }
+
+    pub fn disconnect_two_way_peg_data(
+        &self,
+        rwtxn: &mut RwTxn,
+        two_way_peg_data: &TwoWayPegData,
+    ) -> Result<(), Error> {
+        two_way_peg_data::disconnect(self, rwtxn, two_way_peg_data)
+    }
+}
+
+impl Watchable<()> for State {
+    type WatchStream = impl Stream<Item = ()>;
+
+    /// Get a signal that notifies whenever the tip changes
+    fn watch(&self) -> Self::WatchStream {
+        tokio_stream::wrappers::WatchStream::new(self.tip.watch().clone())
+    }
+}
+
+```
+
+
+                
+                
+
+[RESPONSE]
+
+Summary:  
+This file defines a `State` struct that manages the blockchain node's in-memory and on-disk state for block synchronization and validation, handling UTXO/STXO sets, tip, accumulator, withdrawal bundles, and supporting block connection/disconnection and transaction validity checks.
+
+Performance relevance:  
+Related to UTXO management, validation, and database (disk) I/O—critical for block sync and state transitions.
+
+Optimizations:
+- Replace sequential UTXO/STXO iteration (e.g., in `sidechain_wealth`, `get_utxos_by_addresses`) with parallel processing via Rayon for multi-core utilization.
+- Consider memory-mapped I/O or batching with heed if full-state iteration is frequent and a bottleneck.
+- Use accumulator-based UTXO (already using Utreexo), but ensure proof generation (`regenerate_proof`, `get_utreexo_proof`) is batched and/or parallelized when possible.
+- Profile database accesses—potentially batch reads/writes or use caches for hot UTXO data to reduce I/O stalls.
+- If withdrawals/deposits scale, use skiplists or more cache-friendly data structures for sequential access over BTreeMap/DatabaseUnique.
+
+If further code from `block::validate` or `block::connect` is provided, more targeted optimizations could be suggested.
+
+[/home/admin/--DEV--/AI/kahuna_tests/thunder-rust-waldi/lib/state/mod.rs]
+
+Summary:  
+This file defines a `State` struct that manages the blockchain node's in-memory and on-disk state for block synchronization and validation, handling UTXO/STXO sets, tip, accumulator, withdrawal bundles, and supporting block connection/disconnection and transaction validity checks.
+
+Performance relevance:  
+Related to UTXO management, validation, and database (disk) I/O—critical for block sync and state transitions.
+
+Optimizations:
+- Replace sequential UTXO/STXO iteration (e.g., in `sidechain_wealth`, `get_utxos_by_addresses`) with parallel processing via Rayon for multi-core utilization.
+- Consider memory-mapped I/O or batching with heed if full-state iteration is frequent and a bottleneck.
+- Use accumulator-based UTXO (already using Utreexo), but ensure proof generation (`regenerate_proof`, `get_utreexo_proof`) is batched and/or parallelized when possible.
+- Profile database accesses—potentially batch reads/writes or use caches for hot UTXO data to reduce I/O stalls.
+- If withdrawals/deposits scale, use skiplists or more cache-friendly data structures for sequential access over BTreeMap/DatabaseUnique.
+
+If further code from `block::validate` or `block::connect` is provided, more targeted optimizations could be suggested.
+
+[PROMPT]
+
+
+
+                
+
+You are a world-class Rust & Bitcoin Core engineer, up to speed on Eric Voskuil’s performance breakthroughs (e.g., SwiftSync, accumulator-based UTXO, parallel IBD).
+
+For the Rust file content below, return:
+
+1. Summary (1 sentence): what this file does in block sync/validation flow.
+2. Performance relevance: is it related to parsing, disk I/O, validation, UTXO management, or another sync bottleneck? If not, reply "Not related to syncing or performance."
+3. Optimizations (if relevant): list concrete Rust improvements (parallel parsing with Rayon, accumulator or skiplist, memory-mapped I/O, batch/caching). Only suggest ideas you're confident apply. If uncertain, say "uncertain—need more code context."
+4. If the file is CLI/UI/test/build, only reply "Not related to syncing or performance."
+
+Format:
+Summary: …
+Performance relevance: …
+Optimizations:
+- …
+- …
+
+File content:
+```rust
+use nonempty::NonEmpty;
+use serde::{Deserialize, Serialize};
+
+/// Data of type `T` paired with block height at which it was last updated
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct HeightStamped<T> {
+    pub value: T,
+    pub height: u32,
+}
+
+/// Wrapper struct for fields that support rollbacks
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct RollBack<T>(NonEmpty<HeightStamped<T>>);
+
+impl<T> RollBack<T> {
+    pub fn new(value: T, height: u32) -> Self {
+        let height_stamped = HeightStamped { value, height };
+        Self(NonEmpty::new(height_stamped))
+    }
+
+    /// Pop the most recent value
+    pub fn pop(mut self) -> (Option<Self>, HeightStamped<T>) {
+        if let Some(value) = self.0.pop() {
+            (Some(self), value)
+        } else {
+            (None, self.0.head)
+        }
+    }
+
+    /// Attempt to push a value as the new most recent.
+    /// Returns the value if the operation fails.
+    pub fn push(&mut self, value: T, height: u32) -> Result<(), T> {
+        if self.0.last().height > height {
+            return Err(value);
+        }
+        let height_stamped = HeightStamped { value, height };
+        self.0.push(height_stamped);
+        Ok(())
+    }
+
+    /// Returns the earliest value
+    pub fn earliest(&self) -> &HeightStamped<T> {
+        self.0.first()
+    }
+
+    /// Returns the most recent value
+    pub fn latest(&self) -> &HeightStamped<T> {
+        self.0.last()
+    }
+}
+
+```
+
+
+                
+                
+
+[RESPONSE]
+
+Summary:  
+Implements a rollbackable value wrapper tagged with block heights, enabling tracking and reverting state changes for a given data type during block processing.
+
+Performance relevance:  
+Related to validation and UTXO management (specifically, handling undo/rollback for state changes during block/reorg processing).
+
+Optimizations:
+- If used intensively in hot loops (e.g., per-UTXO or per-account), consider storing `NonEmpty<HeightStamped<T>>` as a contiguous memory structure (Vec) for cache locality.
+- If rollback operations are frequent and need to be parallelized (e.g., during reorgs or batch validation), consider parallelizing with Rayon at a higher layer (over sets of these structures).
+- If used with large data sets, evaluate batch serialization/deserialization with serde for efficiency, possibly with zero-copy formats (e.g., bincode + slices).
+- Uncertain—need more code context to suggest accumulator-based or skiplist optimizations.
+
+[/home/admin/--DEV--/AI/kahuna_tests/thunder-rust-waldi/lib/state/rollback.rs]
+
+Summary:  
+Implements a rollbackable value wrapper tagged with block heights, enabling tracking and reverting state changes for a given data type during block processing.
+
+Performance relevance:  
+Related to validation and UTXO management (specifically, handling undo/rollback for state changes during block/reorg processing).
+
+Optimizations:
+- If used intensively in hot loops (e.g., per-UTXO or per-account), consider storing `NonEmpty<HeightStamped<T>>` as a contiguous memory structure (Vec) for cache locality.
+- If rollback operations are frequent and need to be parallelized (e.g., during reorgs or batch validation), consider parallelizing with Rayon at a higher layer (over sets of these structures).
+- If used with large data sets, evaluate batch serialization/deserialization with serde for efficiency, possibly with zero-copy formats (e.g., bincode + slices).
+- Uncertain—need more code context to suggest accumulator-based or skiplist optimizations.
+
+[PROMPT]
+
+
+
+                
+
+You are a world-class Rust & Bitcoin Core engineer, up to speed on Eric Voskuil’s performance breakthroughs (e.g., SwiftSync, accumulator-based UTXO, parallel IBD).
+
+For the Rust file content below, return:
+
+1. Summary (1 sentence): what this file does in block sync/validation flow.
+2. Performance relevance: is it related to parsing, disk I/O, validation, UTXO management, or another sync bottleneck? If not, reply "Not related to syncing or performance."
+3. Optimizations (if relevant): list concrete Rust improvements (parallel parsing with Rayon, accumulator or skiplist, memory-mapped I/O, batch/caching). Only suggest ideas you're confident apply. If uncertain, say "uncertain—need more code context."
+4. If the file is CLI/UI/test/build, only reply "Not related to syncing or performance."
+
+Format:
+Summary: …
+Performance relevance: …
+Optimizations:
+- …
+- …
+
+File content:
+```rust
+//! Connect and disconnect blocks
+
+use std::collections::HashSet;
+
+use rustreexo::accumulator::node_hash::BitcoinNodeHash;
+use sneed::{RoTxn, RwTxn, db::error::Error as DbError};
+
+use crate::{
+    state::{Error, State, error},
+    types::{
+        AccumulatorDiff, AmountOverflowError, Body, GetAddress as _,
+        GetValue as _, Header, InPoint, OutPoint, PointedOutput, SpentOutput,
+        Verify as _,
+    },
+    wallet::Authorization,
+};
+
+pub fn validate(
+    state: &State,
+    rotxn: &RoTxn,
+    header: &Header,
+    body: &Body,
+) -> Result<bitcoin::Amount, Error> {
+    let tip_hash = state.try_get_tip(rotxn)?;
+    if header.prev_side_hash != tip_hash {
+        let err = error::InvalidHeader::PrevSideHash {
+            expected: tip_hash,
+            received: header.prev_side_hash,
+        };
+        return Err(Error::InvalidHeader(err));
+    };
+    let height = state.try_get_height(rotxn)?.map_or(0, |height| height + 1);
+    if body.authorizations.len() > State::body_sigops_limit(height) {
+        return Err(Error::TooManySigops);
+    }
+    let body_size =
+        borsh::object_length(&body).map_err(Error::BorshSerialize)?;
+    if body_size > State::body_size_limit(height) {
+        return Err(Error::BodyTooLarge);
+    }
+    let mut accumulator = state
+        .utreexo_accumulator
+        .try_get(rotxn, &())
+        .map_err(DbError::from)?
+        .unwrap_or_default();
+    let mut accumulator_diff = AccumulatorDiff::default();
+    let mut coinbase_value = bitcoin::Amount::ZERO;
+    let merkle_root = body.compute_merkle_root();
+    if merkle_root != header.merkle_root {
+        let err = Error::InvalidBody {
+            expected: merkle_root,
+            computed: header.merkle_root,
+        };
+        return Err(err);
+    }
+    for (vout, output) in body.coinbase.iter().enumerate() {
+        coinbase_value = coinbase_value
+            .checked_add(output.get_value())
+            .ok_or(AmountOverflowError)?;
+        let outpoint = OutPoint::Coinbase {
+            merkle_root,
+            vout: vout as u32,
+        };
+        let pointed_output = PointedOutput {
+            outpoint,
+            output: output.clone(),
+        };
+        accumulator_diff.insert((&pointed_output).into());
+    }
+    let mut total_fees = bitcoin::Amount::ZERO;
+    let mut spent_utxos = HashSet::new();
+    let filled_transactions: Vec<_> = body
+        .transactions
+        .iter()
+        .map(|t| state.fill_transaction(rotxn, t))
+        .collect::<Result<_, _>>()?;
+    for filled_transaction in &filled_transactions {
+        let txid = filled_transaction.transaction.txid();
+        // hashes of spent utxos, used to verify the utreexo proof
+        let mut spent_utxo_hashes = Vec::<BitcoinNodeHash>::new();
+        for (outpoint, utxo_hash) in &filled_transaction.transaction.inputs {
+            if spent_utxos.contains(outpoint) {
+                return Err(Error::UtxoDoubleSpent);
+            }
+            spent_utxos.insert(*outpoint);
+            spent_utxo_hashes.push(utxo_hash.into());
+            accumulator_diff.remove(utxo_hash.into());
+        }
+        for (vout, output) in
+            filled_transaction.transaction.outputs.iter().enumerate()
+        {
+            let outpoint = OutPoint::Regular {
+                txid,
+                vout: vout as u32,
+            };
+            let pointed_output = PointedOutput {
+                outpoint,
+                output: output.clone(),
+            };
+            accumulator_diff.insert((&pointed_output).into());
+        }
+        total_fees = total_fees
+            .checked_add(state.validate_filled_transaction(filled_transaction)?)
+            .ok_or(AmountOverflowError)?;
+        // verify utreexo proof
+        if !accumulator
+            .verify(&filled_transaction.transaction.proof, &spent_utxo_hashes)?
+        {
+            return Err(Error::UtreexoProofFailed { txid });
+        }
+    }
+    if coinbase_value > total_fees {
+        return Err(Error::NotEnoughFees);
+    }
+    let spent_utxos = filled_transactions
+        .iter()
+        .flat_map(|t| t.spent_utxos.iter());
+    for (authorization, spent_utxo) in
+        body.authorizations.iter().zip(spent_utxos)
+    {
+        if authorization.get_address() != spent_utxo.address {
+            return Err(Error::WrongPubKeyForAddress);
+        }
+    }
+    if Authorization::verify_body(body).is_err() {
+        return Err(Error::AuthorizationError);
+    }
+    let () = accumulator.apply_diff(accumulator_diff)?;
+    let roots: Vec<BitcoinNodeHash> = accumulator.get_roots();
+    if roots != header.roots {
+        return Err(Error::UtreexoRootsMismatch);
+    }
+    Ok(total_fees)
+}
+
+pub fn connect(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    header: &Header,
+    body: &Body,
+) -> Result<(), Error> {
+    let tip_hash = state.try_get_tip(rwtxn)?;
+    if tip_hash != header.prev_side_hash {
+        let err = error::InvalidHeader::PrevSideHash {
+            expected: tip_hash,
+            received: header.prev_side_hash,
+        };
+        return Err(Error::InvalidHeader(err));
+    }
+    let merkle_root = body.compute_merkle_root();
+    if merkle_root != header.merkle_root {
+        let err = Error::InvalidBody {
+            expected: merkle_root,
+            computed: header.merkle_root,
+        };
+        return Err(err);
+    }
+    let mut accumulator = state
+        .utreexo_accumulator
+        .try_get(rwtxn, &())
+        .map_err(DbError::from)?
+        .unwrap_or_default();
+    let mut accumulator_diff = AccumulatorDiff::default();
+    for (vout, output) in body.coinbase.iter().enumerate() {
+        let outpoint = OutPoint::Coinbase {
+            merkle_root,
+            vout: vout as u32,
+        };
+        let pointed_output = PointedOutput {
+            outpoint,
+            output: output.clone(),
+        };
+        accumulator_diff.insert((&pointed_output).into());
+        state
+            .utxos
+            .put(rwtxn, &outpoint, output)
+            .map_err(DbError::from)?;
+    }
+    for transaction in &body.transactions {
+        let txid = transaction.txid();
+        for (vin, (outpoint, utxo_hash)) in
+            transaction.inputs.iter().enumerate()
+        {
+            let spent_output = state
+                .utxos
+                .try_get(rwtxn, outpoint)
+                .map_err(DbError::from)?
+                .ok_or(Error::NoUtxo {
+                    outpoint: *outpoint,
+                })?;
+            accumulator_diff.remove(utxo_hash.into());
+            state.utxos.delete(rwtxn, outpoint).map_err(DbError::from)?;
+            let spent_output = SpentOutput {
+                output: spent_output,
+                inpoint: InPoint::Regular {
+                    txid,
+                    vin: vin as u32,
+                },
+            };
+            state
+                .stxos
+                .put(rwtxn, outpoint, &spent_output)
+                .map_err(DbError::from)?;
+        }
+        for (vout, output) in transaction.outputs.iter().enumerate() {
+            let outpoint = OutPoint::Regular {
+                txid,
+                vout: vout as u32,
+            };
+            let pointed_output = PointedOutput {
+                outpoint,
+                output: output.clone(),
+            };
+            accumulator_diff.insert((&pointed_output).into());
+            state
+                .utxos
+                .put(rwtxn, &outpoint, output)
+                .map_err(DbError::from)?;
+        }
+    }
+    let block_hash = header.hash();
+    let height = state.try_get_height(rwtxn)?.map_or(0, |height| height + 1);
+    state
+        .tip
+        .put(rwtxn, &(), &block_hash)
+        .map_err(DbError::from)?;
+    state
+        .height
+        .put(rwtxn, &(), &height)
+        .map_err(DbError::from)?;
+    let () = accumulator.apply_diff(accumulator_diff)?;
+    state
+        .utreexo_accumulator
+        .put(rwtxn, &(), &accumulator)
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+pub fn disconnect_tip(
+    state: &State,
+    rwtxn: &mut RwTxn,
+    header: &Header,
+    body: &Body,
+) -> Result<(), Error> {
+    let tip_hash = state
+        .tip
+        .try_get(rwtxn, &())
+        .map_err(DbError::from)?
+        .ok_or(Error::NoTip)?;
+    if tip_hash != header.hash() {
+        let err = error::InvalidHeader::BlockHash {
+            expected: tip_hash,
+            computed: header.hash(),
+        };
+        return Err(Error::InvalidHeader(err));
+    }
+    let merkle_root = body.compute_merkle_root();
+    if merkle_root != header.merkle_root {
+        let err = Error::InvalidBody {
+            expected: merkle_root,
+            computed: header.merkle_root,
+        };
+        return Err(err);
+    }
+    let mut accumulator = state
+        .utreexo_accumulator
+        .try_get(rwtxn, &())
+        .map_err(DbError::from)?
+        .unwrap_or_default();
+    tracing::debug!("Got acc");
+    let mut accumulator_diff = AccumulatorDiff::default();
+    // revert txs, last-to-first
+    body.transactions.iter().rev().try_for_each(|tx| {
+        let txid = tx.txid();
+        // delete UTXOs, last-to-first
+        tx.outputs.iter().enumerate().rev().try_for_each(
+            |(vout, output)| {
+                let outpoint = OutPoint::Regular {
+                    txid,
+                    vout: vout as u32,
+                };
+                let pointed_output = PointedOutput {
+                    outpoint,
+                    output: output.clone(),
+                };
+                accumulator_diff.remove((&pointed_output).into());
+                if state
+                    .utxos
+                    .delete(rwtxn, &outpoint)
+                    .map_err(DbError::from)?
+                {
+                    Ok(())
+                } else {
+                    Err(Error::NoUtxo { outpoint })
+                }
+            },
+        )?;
+        // unspend STXOs, last-to-first
+        tx.inputs
+            .iter()
+            .rev()
+            .try_for_each(|(outpoint, utxo_hash)| {
+                if let Some(spent_output) = state
+                    .stxos
+                    .try_get(rwtxn, outpoint)
+                    .map_err(DbError::from)?
+                {
+                    accumulator_diff.insert(utxo_hash.into());
+                    state
+                        .stxos
+                        .delete(rwtxn, outpoint)
+                        .map_err(DbError::from)?;
+                    state
+                        .utxos
+                        .put(rwtxn, outpoint, &spent_output.output)
+                        .map_err(DbError::from)?;
+                    Ok(())
+                } else {
+                    Err(Error::NoStxo {
+                        outpoint: *outpoint,
+                    })
+                }
+            })
+    })?;
+    // delete coinbase UTXOs, last-to-first
+    body.coinbase
+        .iter()
+        .enumerate()
+        .rev()
+        .try_for_each(|(vout, output)| {
+            let outpoint = OutPoint::Coinbase {
+                merkle_root,
+                vout: vout as u32,
+            };
+            let pointed_output = PointedOutput {
+                outpoint,
+                output: output.clone(),
+            };
+            accumulator_diff.remove((&pointed_output).into());
+            if state
+                .utxos
+                .delete(rwtxn, &outpoint)
+                .map_err(DbError::from)?
+            {
+                Ok(())
+            } else {
+                Err(Error::NoUtxo { outpoint })
+            }
+        })?;
+    let height = state
+        .try_get_height(rwtxn)?
+        .expect("Height should not be None");
+    match (header.prev_side_hash, height) {
+        (None, 0) => {
+            state.tip.delete(rwtxn, &()).map_err(DbError::from)?;
+            state.height.delete(rwtxn, &()).map_err(DbError::from)?;
+        }
+        (None, _) | (_, 0) => return Err(Error::NoTip),
+        (Some(prev_side_hash), height) => {
+            state
+                .tip
+                .put(rwtxn, &(), &prev_side_hash)
+                .map_err(DbError::from)?;
+            state
+                .height
+                .put(rwtxn, &(), &(height - 1))
+                .map_err(DbError::from)?;
+        }
+    }
+    let () = accumulator.apply_diff(accumulator_diff)?;
+    state
+        .utreexo_accumulator
+        .put(rwtxn, &(), &accumulator)
+        .map_err(DbError::from)?;
+    Ok(())
+}
+
+```
+
+
+                
+                
+
+[RESPONSE]
+
+Summary:  
+This file implements block connection, disconnection, and validation logic, managing the UTXO set and Utreexo accumulator as part of block synchronization and chainstate updates.
+
+Performance relevance:  
+Yes—this code is directly related to validation, UTXO management, parsing, and disk I/O during block sync.
+
+Optimizations:
+- Employ parallel validation and parsing of transactions within blocks using Rayon to better utilize multicore CPUs, especially in the `validate` and `connect` loops.
+- Batch disk I/O operations (e.g., batch writes/reads for UTXO and STXO changes) to minimize transaction overhead with the backing database.
+- Use memory-mapped I/O for UTXO and accumulator state if the database or storage backend allows.
+- Optimize accumulator diff application with more cache-friendly data structures or in-place updates.
+- Consider accumulator snapshots and lazy loading to speed up IBD and tip disconnection (if not already handled elsewhere).
+- Investigate lock-free or fine-grained locking schemes for state updates to reduce contention in concurrent sync scenarios.
+
+[/home/admin/--DEV--/AI/kahuna_tests/thunder-rust-waldi/lib/state/block.rs]
+
+Summary:  
+This file implements block connection, disconnection, and validation logic, managing the UTXO set and Utreexo accumulator as part of block synchronization and chainstate updates.
+
+Performance relevance:  
+Yes—this code is directly related to validation, UTXO management, parsing, and disk I/O during block sync.
+
+Optimizations:
+- Employ parallel validation and parsing of transactions within blocks using Rayon to better utilize multicore CPUs, especially in the `validate` and `connect` loops.
+- Batch disk I/O operations (e.g., batch writes/reads for UTXO and STXO changes) to minimize transaction overhead with the backing database.
+- Use memory-mapped I/O for UTXO and accumulator state if the database or storage backend allows.
+- Optimize accumulator diff application with more cache-friendly data structures or in-place updates.
+- Consider accumulator snapshots and lazy loading to speed up IBD and tip disconnection (if not already handled elsewhere).
+- Investigate lock-free or fine-grained locking schemes for state updates to reduce contention in concurrent sync scenarios.
+

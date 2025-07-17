@@ -1,3 +1,5 @@
 /target
 /db/
 /db/*
+/*.sh
+/kahuna_cli
